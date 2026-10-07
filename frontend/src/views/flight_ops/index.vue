@@ -11,6 +11,17 @@
       </div>
     </header>
 
+    <section class="rule-banner">
+      <p class="rule-title">节点阈值规则（规则调整后只重判未结束航班，历史结论保持原口径）</p>
+      <ul class="rule-list">
+        <li>按航班号、机尾号、计划到港、实际到港判定保障节点，另须已填报保障节点；全部达标才允许进入「保障中」，缺保障节点或归属不允许保存。</li>
+        <li>航班号形如 CA1858（2位字母/数字代码 + 3~4位数字），机尾号形如 B-6512（B- 开头注册号）；实际到港相对计划到港早到不超过3小时、晚到不超过24小时。</li>
+        <li>延误与人工放行冲突时以安全放行为准：「已就绪」是最终结论，锁定后不再接受标记延误等任何流转。</li>
+        <li>启动保障会在过站监控清单同步计时任务，安全放行同步收口为正常完成；重复确认只生效一次。</li>
+      </ul>
+      <p v-if="rejudgedCount" class="rule-rejudge">本次规则切换已重判 {{ rejudgedCount }} 个未结束航班，原因见对应行「当前状态」下方说明。</p>
+    </section>
+
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
@@ -44,7 +55,10 @@
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
-          <td>{{ row.status }}</td>
+          <td>
+            {{ row.status }}
+            <span v-if="row['阈值重判说明']" class="cell-note">{{ row['阈值重判说明'] }}</span>
+          </td>
           <td class="row-actions">
             <button
               v-for="action in actions"
@@ -97,6 +111,10 @@ const statusSummary = computed(() =>
     status,
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
+)
+
+const rejudgedCount = computed(
+  () => rows.value.filter((row) => Boolean(row['阈值重判说明'])).length,
 )
 
 function resetFilters() {

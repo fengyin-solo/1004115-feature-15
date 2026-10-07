@@ -11,6 +11,14 @@
       </div>
     </header>
 
+    <section class="rule-banner">
+      <p class="rule-title">计时同步规则</p>
+      <ul class="rule-list">
+        <li>航班保障入口启动保障 / 安全放行时，本清单自动同步创建、启动或收口计时任务；重复确认只生效一次。</li>
+        <li>「监测中」记录按秒实时计时，正常完成或标记超时时定格过站时长；已结束记录不再流转。</li>
+      </ul>
+    </section>
+
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
@@ -43,7 +51,12 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column">
+            <span v-if="column === '过站时长' && String(row.status) === '监测中'" class="ticking">
+              {{ row[column] ?? '00:00:00' }}
+            </span>
+            <template v-else>{{ row[column] ?? '—' }}</template>
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -71,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import {
   downloadEntries,
@@ -92,6 +105,9 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+// 秒级心跳：只重算「监测中」行的过站时长，不重置筛选条件。
+let timer: number | undefined
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -122,16 +138,35 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
+function refreshRows() {
+  const payload = listEntries(meta.key, filters.value)
+  rows.value = payload.items
+  total.value = payload.total
+}
+
 function reload() {
   errorMessage.value = ''
   try {
-    const payload = listEntries(meta.key, filters.value)
-    rows.value = payload.items
-    total.value = payload.total
+    refreshRows()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '过站监控列表读取失败'
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  reload()
+  timer = window.setInterval(() => {
+    try {
+      refreshRows()
+    } catch {
+      // 心跳刷新失败不打断页面，下一拍继续。
+    }
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (timer !== undefined) {
+    window.clearInterval(timer)
+  }
+})
 </script>
